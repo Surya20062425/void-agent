@@ -1,85 +1,84 @@
 # void — CLI agent
 
-`/s` — the CLI agent. Neon-green branding, full tool + skill + session + cron system.
+Stage 1. A CLI agent with a full tool, skill, session, and cron surface.
+
+## Quick start
+
+```bash
+python -m pip install -e .
+void setup                       # walkthrough: key -> base_url -> model
+void chat                        # interactive
+void chat -q "what time is it?"  # one-shot
+```
+
+## What it does
+
+- **36 tools** across system, web, email, task, session, memory, cronjob,
+  process, browser, vision, delegate, and inbox.
+- **131 skills** vendored as real `SKILL.md` files in `~/.void/skills/`,
+  trigger-matched and injected into the prompt only when relevant.
+- **Sessions** persist to SQLite; `--resume` reloads history.
+- **Cron** executes jobs through the agent (`tick` / `daemon` / `logs`).
+- **Interleaving** — type a new task while the agent is working; it queues
+  and runs next. The terminal stays live.
 
 ## Structure
 
 ```
 void/
-├── agent.py           # Agent loop — model call → tool dispatch → round-trip
-├── cli.py             # CLI entry point (argparse, all subcommands)
-├── config.py          # Config (~/.void/config.json) — key/base_url/model
-├── model.py           # OpenAI-format model client
+├── agent.py           # agent loop: model -> tool dispatch -> round-trip
+├── cli.py             # argparse entry point, all subcommands
+├── config.py          # ~/.void/config.json (key / base_url / model)
+├── model.py           # OpenAI-format client + fallback chain
+├── providers.py       # provider config
 ├── sessions.py        # SQLite session store
-├── providers.py       # Provider config + fallback chain
-├── skills_catalog.py  # 101-skill catalog
-├── theme.py           # Terminal theme (neon green #9df133, DM Mono)
-├── commands/
-│   ├── model_cmd.py   # model list/set/show
-│   ├── auth_cmd.py    # auth add/list/remove/status
-│   ├── fallback_cmd.py# fallback chain commands
-│   ├── sessions_cmd.py# session CRUD + export
-│   ├── skills_cmd.py  # skill install/discover/search/browse
-│   └── cron_cmd.py    # scheduled jobs
-└── tools/
-    ├── registry.py    # Tool register + dispatch (auto-discovers tools/*.py)
-    ├── system.py      # read/write/shell/ls/pwd/env
-    ├── web.py         # fetch/extract/search (DuckDuckGo)
-    ├── email.py       # list/read/send/search (IMAP/SMTP)
-    ├── task.py        # task list/add/done/delete
-    ├── session_tool.py# session search/read
-    ├── memory_tool.py # memory list/add/remove
-    ├── cronjob_tool.py# cronjob list/create/delete
-    ├── process_tool.py# process list/start/stop
-    └── example.py     # get_time demo
+├── inbox.py           # task inbox (queue work into a running agent)
+├── skills_catalog.py  # skill catalog
+├── theme.py           # terminal theme
+├── commands/          # model, auth, fallback, sessions, skills, cron, system
+└── tools/             # one module per tool group, auto-discovered
 ```
 
-## Tools — 28 across 9 categories
-
-| Category  | Tools |
-|-----------|-------|
-| system    | `system_read_file` `system_write_file` `system_shell` `system_ls` `system_pwd` `system_env_var` |
-| web       | `web_fetch` `web_extract_text` `web_search` |
-| email     | `email_list` `email_read` `email_send` `email_search` |
-| task      | `task_list` `task_add` `task_done` `task_delete` |
-| session   | `session_search` `session_read` |
-| memory    | `memory_list` `memory_add` `memory_remove` |
-| cronjob   | `cronjob_list` `cronjob_create` `cronjob_delete` |
-| process   | `process_list` `process_start` `process_stop` |
-| misc      | `get_time` |
-
-## Skills — 101 in catalog
-
-`void/skills_catalog.py` holds the Void skill catalog: void-core, devops, creative, UI/UX,
-software-development, bountyforge, web3, web2, research, productivity, publish, media, email,
-hyperframes, higgsfield. Skills are injected into the system prompt when the user's message
-matches a skill trigger.
+## Commands
 
 ```
-void skills browse             # list all 101 skills by category
-void skills search vercel      # search installed + catalog
-void skills list               # installed skills only
-```
-
-## Usage
-
-```
-void setup                          # walkthrough: key → base_url → model
-void chat -q "what time is it?"     # chat with tool-calling loop
-void config set api_key <key>       # set API key
-void model list                     # show providers + models
-void sessions list                  # browse sessions
-void cron create 30m "what time is it"
+void chat [--resume <id>] [-q "<query>"]   chat with the agent
+void queue add|list|clear                   queue tasks for a running agent
+void sessions list|browse|export|prune      session management
+void skills list|browse|search|inspect      skill management
+void cron list|create|run|tick|daemon|logs  scheduled jobs
+void tools list|enable|disable              tool management
+void model / auth / fallback                provider config
+void status / doctor / logs                 diagnostics
+void memory / kanban / project / skin / pets / hooks / secrets / moa / mcp / webhooks
 ```
 
 ## Requirements
 
-Python >= 3.10, openai >= 1.0. No external tools.
+Python >= 3.10, `openai >= 1.0`. Optional: `playwright` for `browser_fetch`
+and `browser_click`.
 
 ## Tests
 
+```bash
+python test_surface.py            # tools registered, schemas valid
+python test_capabilities.py       # sessions, cron, gating, fallback
+python test_all_tools.py          # every tool, realistic scenarios
+python test_all_skills.py         # every skill resolves and matches
+python test_all_commands.py       # every CLI command
+python test_interleave.py         # mid-run task queueing
+python test_untested.py           # hooks, moa, cron daemon, logging
+python test_void_comprehensive.py # full functional sweep
 ```
-python test_surface.py     # tools registered, schemas valid, catalog, skill injection
-python test_imports.py     # theme + import sanity
-python -m void.agent       # agent-loop self-check (mocked model)
-```
+
+## Status — stage 1
+
+Working: the agent loop, all tools, skill injection, sessions, cron,
+interleaving, and the CLI surface.
+
+Known gaps, deferred to a later stage:
+
+- Provider config needs attention: the `openai` entry points at an
+  OpenRouter base_url, so it shares OpenRouter's quota.
+- Skills are vendored copies; refreshing them is a manual step.
+- No packaging/publish yet (installs via `pip install -e .`).
