@@ -1,0 +1,13 @@
+# Normalize line endings: store LF, let each OS check out its own.
+# Without this, every commit re-writes files as CRLF and git warns on each one.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.ico binary
+*.zip binary
+
+# Keep generated files out of diffs
+*_test_results.json linguist-generated=true
