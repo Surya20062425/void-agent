@@ -325,6 +325,32 @@ SUBCOMMAND_HELP = {
   {help_cmd('void secrets bitwarden', 'connect bitwarden')}
   {help_cmd('void secrets onepassword', 'connect 1password')}
 """,
+    "email": f"""
+{help_header('email', 'email configuration')}
+  {dim('Configure IMAP/SMTP credentials for email tools.')}
+
+  {help_section_heading('usage')}
+  {help_cmd('void email config', 'interactive email setup')}
+  {help_cmd('void email test', 'send a test email to yourself')}
+
+  {help_section_heading('what it does')}
+    1. prompts for IMAP host, user, password
+    2. derives SMTP host from IMAP host
+    3. saves to config under email.<label>
+""",
+    "github": f"""
+{help_header('github', 'github configuration')}
+  {dim('Configure GitHub token for API access.')}
+
+  {help_section_heading('usage')}
+  {help_cmd('void github config', 'interactive GitHub setup')}
+  {help_cmd('void github test', 'verify token works')}
+
+  {help_section_heading('what it does')}
+    1. prompts for GitHub personal access token
+    2. saves to config under github.token
+    3. verifies with a real API call
+""",
     "moa": f"""
 {help_header('moa', 'mixture of agents')}
   {dim(DASH + ' multi-model voting ensemble.')}
@@ -901,6 +927,109 @@ def cmd_secrets(args) -> None:
         print()
         print(dim("  stores: bitwarden (bw), onepassword (op)"))
 
+def cmd_email(args) -> None:
+    """Email configuration: interactive setup or test."""
+    sc = getattr(args, "email_subcommand", "config")
+    from void.config import load, save, ensure_home
+    import getpass
+
+    if sc == "config":
+        print(header("Email Setup", 1))
+        print(dim("Configure IMAP/SMTP credentials for email tools."))
+
+        cfg = load()
+        email_cfg = cfg.get("email", {}).get("default", {})
+
+        imap_host = input(f"{green_bold('IMAP host')} [{dim(email_cfg.get('imap_host', 'imap.gmail.com'))}]: ").strip() or email_cfg.get('imap_host', 'imap.gmail.com')
+        imap_user = input(f"{green_bold('IMAP user')} [{dim(email_cfg.get('imap_user', ''))}]: ").strip() or email_cfg.get('imap_user', '')
+        imap_pass = getpass.getpass(f"{green_bold('IMAP password/app password')}: ")
+        imap_port = int(input(f"{green_bold('IMAP port')} [{dim(str(email_cfg.get('imap_port', 993)))}]: ").strip() or str(email_cfg.get('imap_port', 993)))
+
+        cfg.setdefault("email", {})["default"] = {
+            "imap_host": imap_host,
+            "imap_port": imap_port,
+            "imap_user": imap_user,
+            "imap_pass": imap_pass,
+        }
+        save(cfg)
+        print(ok("Email config saved to ~/.void/config.json"))
+        print(dim("  SMTP host derived automatically from IMAP host"))
+        print()
+        print(cmd_entry("void email test", "send a test email to verify"))
+
+    elif sc == "test":
+        cfg = load()
+        email_cfg = cfg.get("email", {}).get("default", {})
+        if not email_cfg.get("imap_user") or not email_cfg.get("imap_pass"):
+            print(err("Email not configured. Run: void email config"))
+            return
+        from void.tools.email import email_send
+        to = email_cfg.get("imap_user", "")
+        result = email_send(to=to, subject="Void email test", body="If you see this, email is working!", label="default")
+        if "error" in result:
+            print(err(f"Test failed: {result['error']}"))
+        else:
+            print(ok(f"Test email sent to {to}"))
+            print(dim("  Check your inbox (and spam folder)"))
+
+def cmd_github(args) -> None:
+    """GitHub configuration: interactive setup or test."""
+    sc = getattr(args, "github_subcommand", "config")
+    from void.config import load, save, ensure_home
+    import getpass
+    import subprocess
+
+    if sc == "config":
+        print(header("GitHub Setup", 1))
+        print(dim("Configure GitHub token for API access."))
+
+        cfg = load()
+        github_cfg = cfg.get("github", {})
+
+        token = getpass.getpass(f"{green_bold('GitHub Personal Access Token')}: ")
+        if not token:
+            print(err("Token required"))
+            return
+
+        cfg["github"] = {"token": token}
+        save(cfg)
+        print(ok("GitHub token saved to ~/.void/config.json"))
+        print()
+        print(cmd_entry("void github test", "verify token works"))
+
+    elif sc == "test":
+            cfg = load()
+            token = cfg.get("github", {}).get("token")
+            if not token:
+                print(err("GitHub token not configured. Run: void github config"))
+                return
+            print(dim("Verifying GitHub token..."))
+            try:
+                result = subprocess.run(
+                    ["curl", "-s", "-D", "-", "-H", f"Authorization: token {token}", "https://api.github.com/user"],
+                    capture_output=True, text=True, timeout=15
+                )
+                # curl -D - outputs headers to stdout before body
+                output = result.stdout
+                if "login" in output:
+                    import json
+                    # Extract JSON from the end
+                    json_start = output.rfind("{")
+                    if json_start >= 0:
+                        user = json.loads(output[json_start:])
+                        print(ok(f"Token valid. Authenticated as: {user['login']}"))
+                        # Extract scopes from headers
+                        import re
+                        scopes_match = re.search(r"x-oauth-scopes:\s*(.+)", output)
+                        scopes = scopes_match.group(1).strip() if scopes_match else "unknown"
+                        print(dim(f"  Scopes: {scopes}"))
+                    else:
+                        print(err("Could not parse user info"))
+                else:
+                    print(err(f"Token verification failed: {output[:200]}"))
+            except Exception as e:
+                print(err(f"Test failed: {e}"))
+
 def cmd_moa(args) -> None:
     from void.commands.system_cmd import cmd_moa as _impl
     _impl(args)
@@ -1045,6 +1174,8 @@ _COMMAND_DISPATCH = {
     "pets":       cmd_pets,
     "memory":     cmd_memory,
     "secrets":    cmd_secrets,
+    "email":      cmd_email,
+    "github":     cmd_github,
     "moa":        cmd_moa,
     "hooks":      cmd_hooks,
     "logs":       cmd_logs,
@@ -1273,6 +1404,18 @@ def main() -> None:
     sp.sub.add_parser("bitwarden", help="Connect bitwarden")
     sp.sub.add_parser("onepassword", help="Connect 1password")
     sp.sub.add_parser("list", help="List configured secret stores")
+
+    # ── email ──
+    sp = sub.add_parser("email", help="Email configuration")
+    sp.sub = sp.add_subparsers(dest="email_subcommand", required=True)
+    sp.sub.add_parser("config", help="Interactive email setup")
+    sp.sub.add_parser("test", help="Send a test email to yourself")
+
+    # ── github ──
+    sp = sub.add_parser("github", help="GitHub configuration")
+    sp.sub = sp.add_subparsers(dest="github_subcommand", required=True)
+    sp.sub.add_parser("config", help="Interactive GitHub setup")
+    sp.sub.add_parser("test", help="Verify token works")
 
     # ── moa ──
     sp = sub.add_parser("moa", help="Mixture of Agents")
