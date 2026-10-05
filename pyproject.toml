@@ -1,11 +1,47 @@
 [project]
-name = "void"
+name = "void-cli"
 version = "0.1.0"
-description = "Void CLI agent"
+description = "Void CLI agent (/s — the CLI agent)"
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0",
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "pyyaml>=6.0",
+]
+keywords = ["cli", "agent", "ai", "llm", "tools", "skills"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 
 [project.scripts]
 void = "void.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "playwright>=1.40",
+    "pillow>=10.0",
+]
+browser = [
+    "playwright>=1.40",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["void*"]
+
+[tool.setuptools.package-data]
+"void" = ["commands/*.py", "tools/*.py", "theme.py", "skills_catalog.py"]

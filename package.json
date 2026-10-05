@@ -2,10 +2,17 @@
   "name": "void-cli",
   "version": "0.1.0",
   "description": "Void CLI agent (/s — the CLI agent)",
+  "main": "cli.js",
   "bin": {
     "void": "./cli.js"
   },
   "scripts": {
-    "void": "node cli.js"
+    "test": "echo \"Tests run via: python test_all_tools.py\"",
+    "install:python": "pip install -e ."
+  },
+  "keywords": ["cli", "agent", "ai", "llm", "tools", "skills"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

@@ -80,6 +80,21 @@ class Model:
                 if not key:
                     continue
                 try:
+                    base_url = cfg.get("base_url") or ""
+                    # Ollama Cloud uses /api/chat (not OpenAI-compatible)
+                    if "ollama.com" in base_url:
+                        resp = _ollama_chat(
+                            base_url, key,
+                            kwargs.get("model", self.model_name),
+                            kwargs.get("messages", []),
+                            kwargs.get("max_tokens"),
+                        )
+                        self._client = OpenAI(api_key=key, base_url=base_url)
+                        self.api_key = key
+                        if base_url:
+                            self.base_url = base_url
+                        self.model_name = kwargs["model"]
+                        return resp
                     alt_kwargs = {"api_key": key}
                     if cfg.get("base_url"):
                         alt_kwargs["base_url"] = cfg["base_url"]
@@ -112,3 +127,47 @@ class ChatResponse:
 class MissingApiKeyError(Exception):
     """Raised when no API key is available at startup."""
 
+
+def _ollama_chat(base_url: str, api_key: str, model: str, messages: list[dict], max_tokens: int | None):
+    """Call Ollama Cloud /api/chat and wrap in OpenAI-style ChatCompletion."""
+    import requests as _requests
+    from openai.types.chat import ChatCompletion, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice as ChatCompletionChoice
+
+    url = base_url.rstrip("/")
+    if "/api/chat" not in url:
+        url = url + "/chat"
+
+    body: dict = {"model": model, "messages": messages, "stream": False}
+    if max_tokens:
+        body["options"] = {"num_predict": max_tokens}
+
+    resp = _requests.post(
+        url,
+        json=body,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        timeout=120,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+
+    msg = data.get("message", {})
+    content = msg.get("content", "")
+    finish_reason = msg.get("stop_reason", "stop")
+
+    from openai.types.chat.chat_completion import Choice as ChatCompletionChoice
+    choice = ChatCompletionChoice(
+        index=0,
+        message=ChatCompletionMessage(
+            role="assistant",
+            content=content,
+        ),
+        finish_reason=finish_reason,
+    )
+    return ChatCompletion(
+        id=f"ollama-{data.get('model', model)}",
+        choices=[choice],
+        created=0,
+        model=model,
+        object="chat.completion",
+    )

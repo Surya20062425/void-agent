@@ -1,13 +1,28 @@
-venv/
-.venv/
+# Python
 __pycache__/
 *.pyc
-.void/
-.env
-.env.*
+*.pyo
+*.pyd
+.venv/
+venv/
 *.egg-info/
 dist/
 build/
-command_test_results.json
-skill_test_results.json
-tool_test_results.json
+.pytest_cache/
+
+# Node
+node_modules/
+
+# User config (never commit secrets)
+.void/
+.env
+.env.*
+
+# Test outputs
+*_test_results.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
