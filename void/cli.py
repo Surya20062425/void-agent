@@ -1062,7 +1062,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=False)
 
     # ── chat ──
     chat = sub.add_parser("chat", help="Chat with the agent")
@@ -1306,6 +1306,18 @@ def main() -> None:
     sp.add_argument("--all", action="store_true", help="Show all components")
 
     args = parser.parse_args()
+
+    # Default: launch interactive chat REPL when no command (like 'void chat')
+    if not args.command:
+        # Set up args as if 'void chat' was called
+        args.max_turns = 20
+        args.query = None
+        args.resume = None
+        args.api_key = None
+        args.base_url = None
+        args.model = None
+        cmd_chat(args)
+        return
 
     # Dispatch
     if args.command in _COMMAND_DISPATCH:
